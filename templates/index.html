@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Dakshina Kannada Public Services Map</title>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial;
+}
+
+body {
+    background: #f2f5f9;
+}
+
+header {
+    background: #123b68;
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+header p {
+    margin-top: 7px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 15px;
+}
+
+.search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+input {
+    flex: 1;
+    padding: 13px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+button {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #1769aa;
+    color: white;
+    cursor: pointer;
+}
+
+.categories {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    margin-bottom: 15px;
+}
+
+.categories button {
+    background: white;
+    color: #123b68;
+    border: 1px solid #ddd;
+    font-weight: bold;
+}
+
+.categories button.active {
+    background: #1769aa;
+    color: white;
+}
+
+#status {
+    padding: 10px 0;
+    color: #444;
+}
+
+#map {
+    height: 60vh;
+    min-height: 380px;
+    width: 100%;
+    border-radius: 12px;
+    z-index: 1;
+}
+
+.results {
+    background: white;
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 10px;
+}
+
+.place {
+    padding: 13px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.place:hover {
+    background: #edf5ff;
+}
+
+.place strong {
+    display: block;
+    margin-bottom: 5px;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+@media(max-width: 500px) {
+    .categories {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h2>📍 Public Services Map</h2>
+    <p>Dakshina Kannada District, Karnataka</p>
+</header>
+
+<div class="container">
+
+    <div class="search">
+        <input id="searchInput"
+        placeholder="Search public services...">
+
+        <button onclick="searchPlaces()">Search</button>
+    </div>
+
+    <div class="categories">
+
+        <button class="active"
+        onclick="filterPlaces('hospital',this)">🏥 Hospitals</button>
+
+        <button onclick="filterPlaces('temple',this)">🛕 Temples</button>
+
+        <button onclick="filterPlaces('school',this)">🏫 Schools</button>
+
+        <button onclick="filterPlaces('college',this)">🎓 Colleges</button>
+
+        <button onclick="filterPlaces('government',this)">🏢 Government</button>
+
+        <button onclick="filterPlaces('police',this)">🚔 Police</button>
+
+        <button onclick="filterPlaces('all',this)">🌍 All Services</button>
+
+    </div>
+
+    <div id="status">Loading locations...</div>
+
+    <div id="map"></div>
+
+    <div class="results">
+
+        <h3>📍 Available Locations</h3>
+
+        <div id="placeList"></div>
+
+    </div>
+
+</div>
+
+<footer>
+    Dakshina Kannada Public Services Map
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+// Data received directly from Flask
+const places = {{ places | tojson }};
+
+// Map
+const map = L.map('map').setView(
+    [12.8700, 74.8800], 10
+);
+
+// Map tiles
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution: '&copy; OpenStreetMap'
+    }
+).addTo(map);
+
+// Icons
+const icons = {
+    hospital: "🏥",
+    temple: "🛕",
+    school: "🏫",
+    college: "🎓",
+    government: "🏢",
+    police: "🚔"
+};
+
+let markers = [];
+
+let currentPlaces = places;
+
+// Filter locations
+function filterPlaces(category, button) {
+
+    document.querySelectorAll('.categories button')
+    .forEach(btn => btn.classList.remove('active'));
+
+    if (button) {
+        button.classList.add('active');
+    }
+
+    if (category === 'all') {
+        currentPlaces = places;
+    } else {
+        currentPlaces = places.filter(
+            p => p.category === category
+        );
+    }
+
+    displayPlaces(currentPlaces);
+
+}
+
+// Display markers
+function displayPlaces(data) {
+
+    markers.forEach(marker => map.removeLayer(marker));
+
+    markers = [];
+
+    const list = document.getElementById('placeList');
+
+    list.innerHTML = '';
+
+    const bounds = [];
+
+    data.forEach(place => {
+
+        const marker = L.marker(
+            [place.lat, place.lon]
+        ).addTo(map);
+
+        marker.bindPopup(`
+            <b>${escapeHTML(place.name)}</b>
+            <br>
+            ${icons[place.category]} ${place.category}
+            <br>
+            ${escapeHTML(place.address)}
+            <br><br>
+            <a target="_blank"
+            href="https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}">
+            Get Directions
+            </a>
+        `);
+
+        markers.push(marker);
+
+        bounds.push([place.lat, place.lon]);
+
+        const div = document.createElement('div');
+
+        div.className = 'place';
+
+        div.innerHTML = `
+            <strong>
+                ${icons[place.category]} 
+                ${escapeHTML(place.name)}
+            </strong>
+            <small>${escapeHTML(place.address)}</small>
+        `;
+
+        div.onclick = () => {
+
+            map.setView(
+                [place.lat, place.lon], 16
+            );
+
+            marker.openPopup();
+
+        };
+
+        list.appendChild(div);
+
+    });
+
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, {padding: [30, 30]});
+    }
+
+    document.getElementById('status').innerText =
+        data.length + ' locations found';
+
+    if (data.length === 0) {
+        list.innerText = 'No locations found.';
+    }
+
+}
+
+// Search
+function searchPlaces() {
+
+    const value = document.getElementById(
+        'searchInput'
+    ).value.toLowerCase().trim();
+
+    const filtered = currentPlaces.filter(place =>
+        place.name.toLowerCase().includes(value) ||
+        place.address.toLowerCase().includes(value)
+    );
+
+    displayPlaces(filtered);
+
+}
+
+// Safe text
+function escapeHTML(value) {
+
+    return String(value).replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[c]);
+
+}
+
+// Initial display
+displayPlaces(places.filter(
+    p => p.category === 'hospital'
+));
+
+</script>
+
+</body>
+</html>
